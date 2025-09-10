@@ -22,9 +22,9 @@ public:
   uint32_t prefetcher_cache_fill(champsim::address addr, long set, long way, uint8_t prefetch, champsim::address evicted_addr, uint32_t metadata_in);
 
 private:
-  static constexpr int HISTORY_LENGTH = 16;
-  std::deque<std::pair<uint64_t, int64_t>> history; // <pc, delta>
-  int64_t last_block = -1;
+  static constexpr int HISTORY_LENGTH = 64;
+  static constexpr const char* BASE_DIR = "prefetcher/cnnpref/model/files/tmp";
+  static constexpr const char* SCRIPT_PATH = "prefetcher/cnnpref/model/infer.py";
 };
 
 #endif

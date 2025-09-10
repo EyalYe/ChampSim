@@ -30,7 +30,10 @@ compile_commands.json
 
 .vscode/
 **/.DS_Store
+prefetcher/cnnpref/model/files/tmp/*
+!prefetcher/cnnpref/model/files/tmp/.gitkeep
 
 debug.csv
 miss.csv
 
+debug.txt
