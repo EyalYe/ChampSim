@@ -138,7 +138,8 @@ def atomic_write_lines(path: str, lines: List[str]) -> None:
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, path)  # atomic on POSIX
-    except Exception:
+    except Exception as e:
+        print(f"# ERROR: removing temp file {tmp}")
         try:
             os.unlink(tmp)
         except OSError:

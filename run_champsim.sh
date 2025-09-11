@@ -7,6 +7,6 @@
 cd /home/eyal/ChampSim
 ./config.sh champsim_config.json
 make
-bin/champsim --warmup-instructions 200000000 --simulation-instructions 500000000 ~/trace_ex/benchbase-tpcc.champsim.trace.gz > $1
+bin/champsim --warmup-instructions 200000000 --simulation-instructions 500000000 ~/trace_ex/benchbase-tpcc.champsim.trace.gz | tee $1
 echo "Simulation complete. Output saved to $1"
 

@@ -8,10 +8,54 @@
 #include <sstream>
 #include <cstdlib>
 #include <iostream>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include <string>
 
-#ifndef HISTORY_LENGTH
-#define HISTORY_LENGTH 64
-#endif
+// Send an already-built JSON payload to the UNIX socket, return server JSON (optional)
+bool send_infer_request_raw(const std::string& sock, const std::string& json_payload, std::string* resp_out) {
+  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0) return false;
+  sockaddr_un addr{}; addr.sun_family = AF_UNIX;
+  std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock.c_str());
+  if (connect(fd, (sockaddr*)&addr, sizeof(addr)) != 0) { close(fd); return false; }
+
+  if (write(fd, json_payload.data(), json_payload.size()) < 0) { close(fd); return false; }
+  shutdown(fd, SHUT_WR);
+
+  // read response
+  char buf[4096]; std::string resp;
+  ssize_t n;
+  while ((n = read(fd, buf, sizeof(buf))) > 0) resp.append(buf, buf+n);
+  close(fd);
+  if (resp_out) *resp_out = std::move(resp);
+  return true;
+}
+
+bool send_infer_request(const std::string& sock, const std::string& in_csv, const std::string& out_txt, int topk=10, int hist=64, int block_bytes=64) {
+  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0) return false;
+  sockaddr_un addr{}; addr.sun_family = AF_UNIX;
+  std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", sock.c_str());
+  if (connect(fd, (sockaddr*)&addr, sizeof(addr)) != 0) { close(fd); return false; }
+
+  std::string payload = std::string("{\"in\":\"") + in_csv + "\",\"out\":\"" + out_txt +
+                        "\",\"topk\":" + std::to_string(topk) +
+                        ",\"hist\":" + std::to_string(hist) +
+                        ",\"block_bytes\":" + std::to_string(block_bytes) + "}";
+  if (write(fd, payload.data(), payload.size()) < 0) { close(fd); return false; }
+  shutdown(fd, SHUT_WR);
+
+  // read response (optional)
+  char buf[4096]; std::string resp;
+  ssize_t n;
+  while ((n = read(fd, buf, sizeof(buf))) > 0) resp.append(buf, buf+n);
+  close(fd);
+  // you can parse resp JSON if you want, or ignore
+  return true;
+}
+
 
 static std::string access_type_to_string(access_type type) {
   switch (type) {
@@ -45,6 +89,29 @@ uint32_t cnnpref::prefetcher_cache_operate(champsim::address addr, champsim::add
   cache_hit_history.pop_front();   cache_hit_history.push_back(cache_hit);
   type_history.pop_front();        type_history.push_back(access_type_to_string(type));
 
+  // Skip prefetching during warmup
+  // ── Warmup gate: count only demand accesses, skip prefetching during warmup ──
+  /*
+  static size_t demand_accesses = 0;
+  demand_accesses += 1;
+
+  if (demand_accesses < CNNPREF_WARMUP_DEMANDS) {
+    if (demand_accesses == 1) {
+      std::cerr << "cnnpref: warming up, skipping prefetches until "
+                << CNNPREF_WARMUP_DEMANDS << " demand accesses\n";
+    }
+    else if (demand_accesses ==  CNNPREF_WARMUP_DEMANDS - 1) {
+      std::cerr << "cnnpref: warmup done, starting prefetching\n";
+    } else if (demand_accesses == 10000000) {
+      std::cerr << "cnnpref: still warming up, "
+                << (CNNPREF_WARMUP_DEMANDS - demand_accesses)
+                << " more demand accesses to go\n";
+    }
+    return metadata_in;
+  }
+  */
+  /*
+  */
   // ── Unique per-call files ───────────────────────────────────────────────
   static std::atomic<uint64_t> seq{0};
   const uint64_t id = seq.fetch_add(1, std::memory_order_relaxed);
@@ -53,9 +120,9 @@ uint32_t cnnpref::prefetcher_cache_operate(champsim::address addr, champsim::add
   std::error_code ec;
   std::filesystem::create_directories(base_dir, ec);
 
-  const std::string hist_path = base_dir + "/hist_" + std::to_string(id) + ".csv";
   const std::string out_path  = base_dir + "/out_"  + std::to_string(id) + ".txt";
-
+  /*
+  const std::string hist_path = base_dir + "/hist_" + std::to_string(id) + ".csv";
   // Build the CSV in-memory to avoid partial lines
   std::ostringstream oss;
   for (size_t i = 0; i < HISTORY_LENGTH; ++i) {
@@ -80,28 +147,62 @@ uint32_t cnnpref::prefetcher_cache_operate(champsim::address addr, champsim::add
     }
   }
 
-  // Optional: throttle/serialize Python calls
-  static std::mutex io_mutex;
-  std::lock_guard<std::mutex> lk(io_mutex);
-
-
-  std::string cmd = std::string("python3 \"") + SCRIPT_PATH +
-                    "\" --input_file \"" + hist_path +
-                    "\" --output_file \"" + out_path + "\"";
-
-  int ret = std::system(cmd.c_str());
-  if (ret != 0) {
-    std::cerr << "cnnpref: inference script failed, code " << ret << "\n";
+  // This blocks until the server writes `out_path`, so it's safe to read it right after.
+  bool ok = send_infer_request(INFER_SOCK_PATH, hist_path, out_path, PREF_TOPK, HISTORY_LENGTH, BLOCK_BYTES);
+  if (!ok) {
+    std::cerr << "cnnpref: infer server request failed (socket " << INFER_SOCK_PATH << ")\n";
     std::filesystem::remove(hist_path, ec);
     return metadata_in;
   }
+  
+  */
+  // Build inline JSON with the last HISTORY_LENGTH entries (addr, ip, hit)
+  // We send hex strings (0x...) so Python can parse with int(x, 0)
+  std::ostringstream req;
+  req << "{\"hist_inline\":{";
+
+  req << "\"addr\":[";
+  for (size_t i = 0; i < HISTORY_LENGTH; ++i) {
+    if (i) req << ",";
+    req << "\"" << std::hex << access_history[i] << "\"";
+  }
+  req << "],";
+
+  req << "\"ip\":[";
+  for (size_t i = 0; i < HISTORY_LENGTH; ++i) {
+    if (i) req << ",";
+    req << "\"" << std::hex << ip_history[i] << "\"";
+  }
+  req << "],";
+
+  req << "\"hit\":[";
+  for (size_t i = 0; i < HISTORY_LENGTH; ++i) {
+    if (i) req << ",";
+    req << std::dec << static_cast<unsigned>(cache_hit_history[i]);
+  }
+  req << "]},";
+  req << "\"out\":\"" << out_path << "\",";
+  req << "\"topk\":" << PREF_TOPK << ",";
+  req << "\"hist\":" << HISTORY_LENGTH << ",";
+  req << "\"block_bytes\":" << BLOCK_BYTES;
+  req << "}";
+
+  std::string server_resp;
+  bool ok = send_infer_request_raw(INFER_SOCK_PATH, req.str(), &server_resp);
+  if (!ok) {
+    std::cerr << "cnnpref: infer server request failed (socket " << INFER_SOCK_PATH << ")\n";
+    std::error_code ec2; std::filesystem::remove(out_path, ec2);
+    return metadata_in;
+  }
+  // (optional) you can inspect server_resp JSON for diagnostics if you want
+
 
   // Read predictions (one hex per line or a single token)
   {
     std::ifstream fin(out_path);
     if (!fin) {
       std::cerr << "cnnpref: cannot open " << out_path << "\n";
-      std::filesystem::remove(hist_path, ec);
+      //std::filesystem::remove(hist_path, ec);
       std::filesystem::remove(out_path, ec);
       return metadata_in;
     }
@@ -118,7 +219,7 @@ uint32_t cnnpref::prefetcher_cache_operate(champsim::address addr, champsim::add
     }
   }
 
-  std::filesystem::remove(hist_path, ec);
+  //std::filesystem::remove(hist_path, ec);
   std::filesystem::remove(out_path, ec);
   return metadata_in;
 }

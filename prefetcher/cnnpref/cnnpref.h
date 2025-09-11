@@ -25,6 +25,10 @@ private:
   static constexpr int HISTORY_LENGTH = 64;
   static constexpr const char* BASE_DIR = "prefetcher/cnnpref/model/files/tmp";
   static constexpr const char* SCRIPT_PATH = "prefetcher/cnnpref/model/infer.py";
+  static constexpr const char* INFER_SOCK_PATH = "/tmp/cnnpref.sock";
+  static constexpr int PREF_TOPK = 10;
+  static constexpr int BLOCK_BYTES = 64;
+  static constexpr int CNNPREF_WARMUP_DEMANDS = 200000000 ;
 };
 
 #endif
