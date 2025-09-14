@@ -65,7 +65,7 @@ def run_sim(is_l1d, is_l2c, config):
         print(f"Running simulation with L1D prefetcher: {l1d_prefetcher}, L2C prefetcher: {l2c_prefetcher}")
         # Run the simulation
         start_time = time.time()
-        subprocess.run([f"./run_champsim.sh {OUTPUT_DIR}/L1D-{l1d_prefetcher}-L2C-{l2c_prefetcher}.txt"], shell=True)
+        subprocess.run([f"./run_champsim.sh {OUTPUT_DIR}/L1D_{l1d_prefetcher}_L2C_{l2c_prefetcher}.txt"], shell=True)
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(f"Simulation completed in {elapsed_time:.2f} seconds\n")

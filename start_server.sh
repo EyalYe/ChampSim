@@ -1,6 +1,9 @@
 
-python3 prefetcher/cnnpref/model/infer_server.py \
-  --ckpt $1 \
-  --sock /tmp/cnnpref.sock --history_len 64 --device cpu --threads 1 \
-  --device cuda
+python3 prefetcher/bnnpref/model/infer_server.py \
+  --sock /tmp/bnnpref.sock \
+  --ckpt prefetcher/cnnpref/model/files/weights/prefetch_mixer_ckpt_p10_93.16_p1_62.93.pt \
+  --device auto \
+  --threads 1 \
+  --max-req 500000000 \
+  --progress-label "bnnpref"
 
