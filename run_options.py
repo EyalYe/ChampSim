@@ -71,9 +71,35 @@ def run_sim(is_l1d, is_l2c, config):
         print(f"Simulation completed in {elapsed_time:.2f} seconds\n")
 
 
+def check_trace_file_exists():
+    trace_file_name = "benchbase-tpcc.champsim.trace.gz"
+    trace_file_path = os.path.join("traces", trace_file_name)
+    if not os.path.exists(trace_file_path):
+        # Dowload the trace file
+        trace_url = "https://zenodo.org/records/13133243/files/benchbase-tpcc.champsim.trace.gz?download=1"
+        print(f"Trace file {trace_file_name} not found in traces directory.")
+        print(f"Downloading trace file from {trace_url.split('?')[0]} ...")
+        try:
+            subprocess.run(["wget", "-O", trace_file_path, trace_url], check=True)
+            print("Trace file downloaded successfully.")
+            return True
+        except subprocess.CalledProcessError:
+            print("Failed to download the trace file. Please check your internet connection and try again.")
+            return False
+    else:
+        return True
+
+ 
+
+
+
 def main():
     global CONFIG_FILE, OUTPUT_DIR, PREFETCHERS
 
+    trace_file_exists = check_trace_file_exists()
+    if not trace_file_exists:
+        print("Trace file does not exist. Please provide a valid trace file in the configuration.")
+        sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Run simulations with different prefetchers on L1D and L2C caches.")
     parser.add_argument('--config', type=str, default=CONFIG_FILE, help='Path to the configuration JSON file.')

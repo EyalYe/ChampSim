@@ -37,3 +37,5 @@ debug.csv
 miss.csv
 
 debug.txt
+traces/*
+!traces/.gitkeep

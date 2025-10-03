@@ -1,3 +1,5 @@
+# ChampSim - BNN-Prefetcher Project Fork
+This is a fork of the original ChampSim repository, modified to include the BNN-Prefetcher. The BNN-Prefetcher is a prefetching algorithm that utilizes Binary Neural Networks (BNNs) to predict and prefetch data more effectively. For further instructions on how to use ChampSim, please refer to the original ChampSim documentation below. Make sure Champsim runs correctly before using the BNN-Prefetcher. Specific instructions for using the BNN-Prefetcher can be found in [BNN-Prefetcher Readme](prefetcher/bnnpref/README.md).
 # ChampSim
 
 ![GitHub](https://img.shields.io/github/license/ChampSim/ChampSim)
